@@ -31,7 +31,6 @@ export class LogsCommand extends BaseCommand {
       return;
     }
 
-    console.log('\nRecent command logs:\n');
     logs.forEach((log) => {
       const timestamp = log.timestamp.toISOString().replace('T', ' ').split('.')[0];
       const argsStr = JSON.stringify(log.args);
