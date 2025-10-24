@@ -16,11 +16,18 @@
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
   },
-  "keywords": ["cli", "workflow", "llm", "state-management"],
+  "keywords": [
+    "cli",
+    "workflow",
+    "llm",
+    "state-management"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@inquirer/prompts": "^7.9.0",
     "commander": "^11.1.0",
+    "ora": "^9.0.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
   },

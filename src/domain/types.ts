@@ -12,3 +12,8 @@ export interface CreateCommandLogInput {
   args: Record<string, unknown>;
   timestamp: Date;
 }
+
+export interface Workflow {
+  fileName: string;
+  name: string;
+}

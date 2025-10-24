@@ -6,6 +6,7 @@ import { HelloCommand } from './commands/hello-command';
 import { LogsCommand } from './commands/logs-command';
 import { ClearLogsCommand } from './commands/clear-logs-command';
 import { ListWorkflowsCommand } from './commands/list-workflows-command';
+import { NewCommand } from './commands/new-command';
 import { DatabaseConnection } from './db/connection';
 import { LogRepository } from './repositories/log-repository';
 import { WorkflowRepository } from './repositories/workflow-repository';
@@ -25,11 +26,12 @@ async function main() {
     const helloService = new HelloService(logRepository);
     const logsService = new LogsService(logRepository);
     const clearLogsService = new ClearLogsService(logRepository);
-    const workflowService = new WorkflowService(workflowRepository);
+    const workflowService = new WorkflowService(workflowRepository, logRepository);
     const helloCommand = new HelloCommand(helloService);
     const logsCommand = new LogsCommand(logsService);
     const clearLogsCommand = new ClearLogsCommand(clearLogsService);
     const listWorkflowsCommand = new ListWorkflowsCommand(workflowService);
+    const newCommand = new NewCommand(workflowService);
 
     // Create program
     const program = new Command();
@@ -44,6 +46,7 @@ async function main() {
     registry.register(logsCommand);
     registry.register(clearLogsCommand);
     registry.register(listWorkflowsCommand);
+    registry.register(newCommand);
 
     // If no command specified, show help and exit successfully
     if (process.argv.length === 2) {
