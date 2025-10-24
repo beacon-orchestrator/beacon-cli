@@ -13,7 +13,17 @@ export interface CreateCommandLogInput {
   timestamp: Date;
 }
 
+export interface WorkflowStage {
+  title: string;
+  // Future: Add description, commands, config, etc.
+}
+
+export interface WorkflowDefinition {
+  stages: WorkflowStage[];
+}
+
 export interface Workflow {
   fileName: string;
   name: string;
+  definition?: WorkflowDefinition;
 }

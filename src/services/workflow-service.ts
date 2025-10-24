@@ -46,9 +46,24 @@ export class WorkflowService {
       // Logging failure shouldn't stop workflow execution
     }
 
-    await withLoading(`Running workflow: ${workflowName}`, async () => {
-      // Simulate 2 second delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    });
+    // Load workflow definition
+    const definition = await this.workflowRepository.getWorkflowDefinition(
+      workflowName
+    );
+
+    if (!definition || !definition.stages || definition.stages.length === 0) {
+      console.log(
+        `No stages defined in workflow: ${workflowName}. Add stages to .beacon/workflows/${workflowName}.yml`
+      );
+      return;
+    }
+
+    // Execute each stage with a loading spinner
+    for (const stage of definition.stages) {
+      await withLoading(`Running stage: ${stage.title}`, async () => {
+        // 2 second delay per stage
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      });
+    }
   }
 }

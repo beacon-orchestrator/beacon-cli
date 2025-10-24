@@ -1,5 +1,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import * as yaml from 'js-yaml';
+import { WorkflowDefinition } from '../domain/types';
 
 export interface WorkflowFilesResult {
   success: boolean;
@@ -39,6 +41,25 @@ export class WorkflowRepository {
         success: false,
         error: error instanceof Error ? error.message : String(error),
       };
+    }
+  }
+
+  async getWorkflowDefinition(
+    workflowName: string
+  ): Promise<WorkflowDefinition | null> {
+    try {
+      const filePath = path.join(this.workflowsPath, `${workflowName}.yml`);
+      const fileContents = await fs.readFile(filePath, 'utf-8');
+      const parsed = yaml.load(fileContents) as WorkflowDefinition;
+
+      // Validate that stages exist and is an array
+      if (!parsed || !Array.isArray(parsed.stages)) {
+        return null;
+      }
+
+      return parsed;
+    } catch (error) {
+      return null;
     }
   }
 }

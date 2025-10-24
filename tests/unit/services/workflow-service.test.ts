@@ -20,6 +20,7 @@ describe('WorkflowService', () => {
   beforeEach(() => {
     mockWorkflowRepository = {
       getWorkflowFiles: jest.fn(),
+      getWorkflowDefinition: jest.fn(),
     } as unknown as jest.Mocked<WorkflowRepository>;
 
     mockLogRepository = {
@@ -83,19 +84,34 @@ describe('WorkflowService', () => {
       jest.restoreAllMocks();
     });
 
-    it('should use withLoading with correct message', async () => {
+    it('should use withLoading with correct message for each stage', async () => {
+      mockWorkflowRepository.getWorkflowDefinition.mockResolvedValue({
+        stages: [
+          { title: 'Stage 1' },
+          { title: 'Stage 2' },
+        ],
+      });
+
       const promise = workflowService.runWorkflow('data-processing');
 
-      await jest.advanceTimersByTimeAsync(2000);
+      await jest.advanceTimersByTimeAsync(4000); // 2s per stage × 2 stages
       await promise;
 
       expect(withLoadingSpy).toHaveBeenCalledWith(
-        'Running workflow: data-processing',
+        'Running stage: Stage 1',
+        expect.any(Function)
+      );
+      expect(withLoadingSpy).toHaveBeenCalledWith(
+        'Running stage: Stage 2',
         expect.any(Function)
       );
     });
 
     it('should log workflow execution to database', async () => {
+      mockWorkflowRepository.getWorkflowDefinition.mockResolvedValue({
+        stages: [{ title: 'Test stage' }],
+      });
+
       const promise = workflowService.runWorkflow('data-processing');
 
       // Fast-forward through the 2 second delay
@@ -114,6 +130,9 @@ describe('WorkflowService', () => {
 
     it('should continue execution even if logging fails', async () => {
       mockLogRepository.create.mockRejectedValue(new Error('Database error'));
+      mockWorkflowRepository.getWorkflowDefinition.mockResolvedValue({
+        stages: [{ title: 'Test stage' }],
+      });
 
       const promise = workflowService.runWorkflow('test-workflow');
       await jest.advanceTimersByTimeAsync(2000);
