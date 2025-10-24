@@ -1,0 +1,42 @@
+{
+  "name": "beacon-cli",
+  "version": "0.1.0",
+  "description": "CLI for persistent workflow state management with LLM prompting",
+  "main": "dist/index.js",
+  "bin": {
+    "beacon": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc && npm run copy-migrations",
+    "copy-migrations": "mkdir -p dist/db/migrations && cp src/db/migrations/*.sql dist/db/migrations/",
+    "dev": "ts-node src/index.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
+  },
+  "keywords": ["cli", "workflow", "llm", "state-management"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.19",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.2.5",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
