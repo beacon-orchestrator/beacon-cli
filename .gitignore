@@ -1,3 +1,6 @@
+# Beacon
+.beacon
+
 # Dependencies
 node_modules/
 
@@ -28,5 +31,5 @@ npm-debug.log*
 .env
 .env.local
 
-# Worktrees (for future feature development)
+# Worktrees 
 .worktrees/
