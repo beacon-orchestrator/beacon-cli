@@ -9,6 +9,11 @@ export class WorkflowValidator {
   static validate(definition: WorkflowDefinition): ValidationResult {
     const errors: string[] = [];
 
+    // Validate system_prompt if present
+    if (definition.system_prompt !== undefined && typeof definition.system_prompt !== 'string') {
+      errors.push('system_prompt must be a string if provided');
+    }
+
     if (!definition.stages || definition.stages.length === 0) {
       errors.push('Workflow must have at least one stage');
       return { valid: false, errors };

@@ -1,6 +1,17 @@
 import { spawn } from 'child_process';
 import chalk from 'chalk';
 import { IAiService, StreamCallbacks } from './ai-service';
+import { ExecutionContext } from '../domain/types';
+import { NotesService } from './notes-service';
+
+const DEFAULT_SYSTEM_PROMPT = `
+REQUIRED: When asked to [create, make, save, record, store, write, etc.] a note, include it as a code block in your response. 
+For example:
+\`\`\`note
+Some example note text
+\`\`\`
+IMPORTANT: Do not use tools to save notes. Notes are extracted automatically from your text response.
+`;
 
 interface StreamEvent {
   type: string;
@@ -25,6 +36,8 @@ interface StreamEvent {
  * Handles process spawning, JSON stream parsing, and error handling
  */
 export class ClaudeCliService implements IAiService {
+  constructor(private notesService: NotesService) {}
+
   /**
    * Creates a parser for Claude CLI's JSON streaming format
    * @param onToken Callback to invoke when text arrives
@@ -164,10 +177,35 @@ export class ClaudeCliService implements IAiService {
    * Execute a prompt using Claude CLI
    * @param prompt The prompt text to send to Claude
    * @param callbacks Callbacks for streaming response handling
+   * @param context Optional execution context with previous notes
    * @returns Promise that resolves when execution completes successfully
    * @throws Error if the Claude CLI fails or is unavailable
    */
-  async executePrompt(prompt: string, callbacks: StreamCallbacks): Promise<void> {
+  async executePrompt(prompt: string, callbacks: StreamCallbacks, context?: ExecutionContext): Promise<void> {
+    // Build enhanced prompt with system prompt and notes
+    let enhancedPrompt = '';
+
+    // Add system prompt (default, custom, or none)
+    if (context?.systemPrompt !== undefined) {
+      // If systemPrompt is explicitly set (including empty string)
+      if (context.systemPrompt !== '') {
+        enhancedPrompt = `${context.systemPrompt}\n\n`;
+      }
+      // If empty string, intentionally skip system prompt
+    } else {
+      // If systemPrompt is undefined, use default
+      enhancedPrompt = `${DEFAULT_SYSTEM_PROMPT}\n\n`;
+    }
+
+    // Add notes context if available
+    if (context?.previousNotes && context.previousNotes.length > 0) {
+      const notesContext = this.notesService.formatNotesForContext(context.previousNotes);
+      enhancedPrompt += notesContext;
+    }
+
+    // Add stage prompt
+    enhancedPrompt += prompt;
+
     return new Promise((resolve, reject) => {
       // Spawn claude CLI with JSON streaming for true realtime output
       const claude = spawn(
@@ -180,7 +218,7 @@ export class ClaudeCliService implements IAiService {
           '--include-partial-messages',
           '--permission-mode',
           'bypassPermissions',
-          prompt,
+          enhancedPrompt,
         ],
         {
           stdio: ['inherit', 'pipe', 'pipe'],

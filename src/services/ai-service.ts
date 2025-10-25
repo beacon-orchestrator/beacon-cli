@@ -32,6 +32,7 @@ export interface IAiService {
    * Execute a prompt using the AI service
    * @param prompt The prompt text to send to the AI
    * @param callbacks Callbacks for streaming response handling
+   * @param context Optional execution context with previous notes
    */
-  executePrompt(prompt: string, callbacks: StreamCallbacks): Promise<void>;
+  executePrompt(prompt: string, callbacks: StreamCallbacks, context?: import('../domain/types').ExecutionContext): Promise<void>;
 }

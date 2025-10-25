@@ -1,5 +1,5 @@
-import { WorkflowStage } from '../domain/types';
+import { WorkflowStage, ExecutionContext } from '../domain/types';
 
 export interface StageExecutor {
-  execute(stage: WorkflowStage): Promise<void>;
+  execute(stage: WorkflowStage, context?: ExecutionContext): Promise<void>;
 }

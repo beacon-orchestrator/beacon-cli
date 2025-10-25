@@ -1,4 +1,5 @@
 import { ClaudeCliService } from '../../../src/services/claude-cli-service';
+import { NotesService } from '../../../src/services/notes-service';
 import { StreamCallbacks } from '../../../src/services/ai-service';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
@@ -20,9 +21,15 @@ class MockChildProcess extends EventEmitter {
 describe('ClaudeCliService', () => {
   let service: ClaudeCliService;
   let mockProcess: MockChildProcess;
+  let mockNotesService: jest.Mocked<NotesService>;
 
   beforeEach(() => {
-    service = new ClaudeCliService();
+    mockNotesService = {
+      extractNotes: jest.fn().mockReturnValue([]),
+      formatNotesForContext: jest.fn().mockReturnValue(''),
+    } as unknown as jest.Mocked<NotesService>;
+
+    service = new ClaudeCliService(mockNotesService);
     mockProcess = new MockChildProcess();
     (spawn as jest.Mock).mockReturnValue(mockProcess);
 
@@ -48,7 +55,7 @@ describe('ClaudeCliService', () => {
           '--include-partial-messages',
           '--permission-mode',
           'bypassPermissions',
-          'test prompt',
+          expect.stringContaining('test prompt'),
         ],
         {
           stdio: ['inherit', 'pipe', 'pipe'],

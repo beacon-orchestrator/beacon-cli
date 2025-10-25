@@ -1,6 +1,8 @@
 import { WorkflowService } from '../../../src/services/workflow-service';
 import { WorkflowRepository } from '../../../src/repositories/workflow-repository';
 import { LogRepository } from '../../../src/repositories/log-repository';
+import { NoteRepository } from '../../../src/repositories/note-repository';
+import { StageExecutorFactory } from '../../../src/executors/stage-executor-factory';
 import { ClaudeCliService } from '../../../src/services/claude-cli-service';
 import { StreamCallbacks } from '../../../src/services/ai-service';
 
@@ -21,6 +23,8 @@ describe('WorkflowService', () => {
   let workflowService: WorkflowService;
   let mockWorkflowRepository: jest.Mocked<WorkflowRepository>;
   let mockLogRepository: jest.Mocked<LogRepository>;
+  let mockNoteRepository: jest.Mocked<NoteRepository>;
+  let mockStageExecutorFactory: jest.Mocked<StageExecutorFactory>;
 
   beforeEach(() => {
     mockWorkflowRepository = {
@@ -32,7 +36,24 @@ describe('WorkflowService', () => {
       create: jest.fn(),
     } as unknown as jest.Mocked<LogRepository>;
 
-    workflowService = new WorkflowService(mockWorkflowRepository, mockLogRepository);
+    mockNoteRepository = {
+      createWorkflowRun: jest.fn().mockResolvedValue(1),
+      createStageExecution: jest.fn().mockResolvedValue(1),
+      getNotesForStage: jest.fn().mockResolvedValue([]),
+      updateRunStatus: jest.fn(),
+      completeStageExecution: jest.fn(),
+    } as unknown as jest.Mocked<NoteRepository>;
+
+    mockStageExecutorFactory = {
+      create: jest.fn(),
+    } as unknown as jest.Mocked<StageExecutorFactory>;
+
+    workflowService = new WorkflowService(
+      mockWorkflowRepository,
+      mockNoteRepository,
+      mockStageExecutorFactory,
+      mockLogRepository
+    );
   });
 
   describe('getWorkflows', () => {
@@ -75,6 +96,7 @@ describe('WorkflowService', () => {
 
   describe('runWorkflow', () => {
     let mockExecutePrompt: jest.Mock;
+    let mockExecutor: any;
 
     beforeEach(() => {
       jest.spyOn(console, 'log').mockImplementation();
@@ -90,13 +112,19 @@ describe('WorkflowService', () => {
       (ClaudeCliService as jest.Mock).mockImplementation(() => ({
         executePrompt: mockExecutePrompt,
       }));
+
+      // Mock executor
+      mockExecutor = {
+        execute: jest.fn().mockResolvedValue(undefined),
+      };
+      mockStageExecutorFactory.create.mockReturnValue(mockExecutor);
     });
 
     afterEach(() => {
       jest.restoreAllMocks();
     });
 
-    it('should execute each stage using the AI service', async () => {
+    it('should execute each stage using the executor pattern', async () => {
       mockWorkflowRepository.getWorkflowDefinition.mockResolvedValue({
         stages: [
           { title: 'Stage 1', type: 'prompt', prompt: 'Test prompt 1' },
@@ -106,16 +134,24 @@ describe('WorkflowService', () => {
 
       await workflowService.runWorkflow('data-processing');
 
-      expect(mockExecutePrompt).toHaveBeenCalledTimes(2);
-      expect(mockExecutePrompt).toHaveBeenNthCalledWith(
+      expect(mockExecutor.execute).toHaveBeenCalledTimes(2);
+      expect(mockExecutor.execute).toHaveBeenNthCalledWith(
         1,
-        'Test prompt 1',
-        expect.any(Object)
+        { title: 'Stage 1', type: 'prompt', prompt: 'Test prompt 1' },
+        expect.objectContaining({
+          runId: 1,
+          stageId: 1,
+          previousNotes: [],
+        })
       );
-      expect(mockExecutePrompt).toHaveBeenNthCalledWith(
+      expect(mockExecutor.execute).toHaveBeenNthCalledWith(
         2,
-        'Test prompt 2',
-        expect.any(Object)
+        { title: 'Stage 2', type: 'prompt', prompt: 'Test prompt 2' },
+        expect.objectContaining({
+          runId: 1,
+          stageId: 1,
+          previousNotes: [],
+        })
       );
     });
 
@@ -156,12 +192,12 @@ describe('WorkflowService', () => {
         workflowService.runWorkflow('invalid-workflow')
       ).rejects.toThrow('Workflow validation failed');
 
-      expect(mockExecutePrompt).not.toHaveBeenCalled();
+      expect(mockExecutor.execute).not.toHaveBeenCalled();
     });
 
-    it('should stop execution if AI service throws error', async () => {
-      mockExecutePrompt.mockRejectedValueOnce(
-        new Error('Claude CLI exited with code 1')
+    it('should stop execution if executor throws error', async () => {
+      mockExecutor.execute.mockRejectedValueOnce(
+        new Error('Execution failed')
       );
 
       mockWorkflowRepository.getWorkflowDefinition.mockResolvedValue({
@@ -173,9 +209,9 @@ describe('WorkflowService', () => {
 
       await expect(
         workflowService.runWorkflow('test-workflow')
-      ).rejects.toThrow('Claude CLI exited with code 1');
+      ).rejects.toThrow('Execution failed');
 
-      expect(mockExecutePrompt).toHaveBeenCalledTimes(1);
+      expect(mockExecutor.execute).toHaveBeenCalledTimes(1);
     });
   });
 });
