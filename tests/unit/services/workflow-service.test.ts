@@ -1,16 +1,21 @@
 import { WorkflowService } from '../../../src/services/workflow-service';
 import { WorkflowRepository } from '../../../src/repositories/workflow-repository';
 import { LogRepository } from '../../../src/repositories/log-repository';
-import * as loadingModule from '../../../src/utils/loading';
+import { ClaudeCliService } from '../../../src/services/claude-cli-service';
+import { StreamCallbacks } from '../../../src/services/ai-service';
 
-// Mock ora
-jest.mock('ora', () => {
-  return jest.fn(() => ({
-    start: jest.fn().mockReturnThis(),
-    succeed: jest.fn(),
-    fail: jest.fn(),
-  }));
-});
+// Mock chalk
+jest.mock('chalk', () => ({
+  green: {
+    bold: jest.fn((text) => text),
+  },
+  cyan: jest.fn((text) => text),
+  blue: jest.fn((text) => text),
+  red: jest.fn((text) => text),
+}));
+
+// Mock the ClaudeCliService
+jest.mock('../../../src/services/claude-cli-service');
 
 describe('WorkflowService', () => {
   let workflowService: WorkflowService;
@@ -69,54 +74,57 @@ describe('WorkflowService', () => {
   });
 
   describe('runWorkflow', () => {
-    let withLoadingSpy: jest.SpyInstance;
+    let mockExecutePrompt: jest.Mock;
 
     beforeEach(() => {
-      jest.useFakeTimers();
       jest.spyOn(console, 'log').mockImplementation();
-      withLoadingSpy = jest.spyOn(loadingModule, 'withLoading').mockImplementation(
-        async (_message, fn) => await fn()
+      jest.spyOn(console, 'error').mockImplementation();
+
+      // Mock the executePrompt method to call onComplete callback
+      mockExecutePrompt = jest.fn().mockImplementation(
+        async (prompt: string, callbacks: StreamCallbacks) => {
+          callbacks.onComplete?.();
+        }
       );
+
+      (ClaudeCliService as jest.Mock).mockImplementation(() => ({
+        executePrompt: mockExecutePrompt,
+      }));
     });
 
     afterEach(() => {
-      jest.useRealTimers();
       jest.restoreAllMocks();
     });
 
-    it('should use withLoading with correct message for each stage', async () => {
+    it('should execute each stage using the AI service', async () => {
       mockWorkflowRepository.getWorkflowDefinition.mockResolvedValue({
         stages: [
-          { title: 'Stage 1' },
-          { title: 'Stage 2' },
+          { title: 'Stage 1', type: 'prompt', prompt: 'Test prompt 1' },
+          { title: 'Stage 2', type: 'prompt', prompt: 'Test prompt 2' },
         ],
       });
 
-      const promise = workflowService.runWorkflow('data-processing');
+      await workflowService.runWorkflow('data-processing');
 
-      await jest.advanceTimersByTimeAsync(4000); // 2s per stage × 2 stages
-      await promise;
-
-      expect(withLoadingSpy).toHaveBeenCalledWith(
-        'Running stage: Stage 1',
-        expect.any(Function)
+      expect(mockExecutePrompt).toHaveBeenCalledTimes(2);
+      expect(mockExecutePrompt).toHaveBeenNthCalledWith(
+        1,
+        'Test prompt 1',
+        expect.any(Object)
       );
-      expect(withLoadingSpy).toHaveBeenCalledWith(
-        'Running stage: Stage 2',
-        expect.any(Function)
+      expect(mockExecutePrompt).toHaveBeenNthCalledWith(
+        2,
+        'Test prompt 2',
+        expect.any(Object)
       );
     });
 
     it('should log workflow execution to database', async () => {
       mockWorkflowRepository.getWorkflowDefinition.mockResolvedValue({
-        stages: [{ title: 'Test stage' }],
+        stages: [{ title: 'Test stage', type: 'prompt', prompt: 'Test prompt that is long enough' }],
       });
 
-      const promise = workflowService.runWorkflow('data-processing');
-
-      // Fast-forward through the 2 second delay
-      await jest.advanceTimersByTimeAsync(2000);
-      await promise;
+      await workflowService.runWorkflow('data-processing');
 
       expect(mockLogRepository.create).toHaveBeenCalledTimes(1);
       expect(mockLogRepository.create).toHaveBeenCalledWith(
@@ -131,13 +139,43 @@ describe('WorkflowService', () => {
     it('should continue execution even if logging fails', async () => {
       mockLogRepository.create.mockRejectedValue(new Error('Database error'));
       mockWorkflowRepository.getWorkflowDefinition.mockResolvedValue({
-        stages: [{ title: 'Test stage' }],
+        stages: [{ title: 'Test stage', type: 'prompt', prompt: 'Test prompt that is long enough' }],
       });
 
-      const promise = workflowService.runWorkflow('test-workflow');
-      await jest.advanceTimersByTimeAsync(2000);
+      await expect(
+        workflowService.runWorkflow('test-workflow')
+      ).resolves.toBeUndefined();
+    });
 
-      await expect(promise).resolves.toBeUndefined();
+    it('should validate workflow and throw error on validation failure', async () => {
+      mockWorkflowRepository.getWorkflowDefinition.mockResolvedValue({
+        stages: [{ title: 'Test stage', type: 'invalid' as 'prompt', prompt: '' }],
+      });
+
+      await expect(
+        workflowService.runWorkflow('invalid-workflow')
+      ).rejects.toThrow('Workflow validation failed');
+
+      expect(mockExecutePrompt).not.toHaveBeenCalled();
+    });
+
+    it('should stop execution if AI service throws error', async () => {
+      mockExecutePrompt.mockRejectedValueOnce(
+        new Error('Claude CLI exited with code 1')
+      );
+
+      mockWorkflowRepository.getWorkflowDefinition.mockResolvedValue({
+        stages: [
+          { title: 'Stage 1', type: 'prompt', prompt: 'Test prompt one that is long enough' },
+          { title: 'Stage 2', type: 'prompt', prompt: 'Test prompt two that is long enough' },
+        ],
+      });
+
+      await expect(
+        workflowService.runWorkflow('test-workflow')
+      ).rejects.toThrow('Claude CLI exited with code 1');
+
+      expect(mockExecutePrompt).toHaveBeenCalledTimes(1);
     });
   });
 });

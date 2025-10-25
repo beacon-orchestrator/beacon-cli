@@ -15,7 +15,8 @@ export interface CreateCommandLogInput {
 
 export interface WorkflowStage {
   title: string;
-  // Future: Add description, commands, config, etc.
+  type: 'prompt';
+  prompt: string;
 }
 
 export interface WorkflowDefinition {
